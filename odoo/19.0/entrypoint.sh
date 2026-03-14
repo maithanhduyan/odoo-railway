@@ -73,6 +73,7 @@ fi
 
 # Build argument list using set -- to handle values with spaces safely
 set -- odoo
+set -- "$@" "--addons-path=/mnt/extra-addons,/usr/lib/python3/dist-packages/odoo/addons"
 set -- "$@" "--http-port=${ODOO_PORT:-8069}"
 set -- "$@" "--gevent-port=${ODOO_GEVENT_PORT:-8072}"
 set -- "$@" "--proxy-mode"

@@ -8,7 +8,7 @@
     "dockerfilePath": "/nginx/Dockerfile"
   },
   "deploy": {
-    "startCommand": "/bin/sh /entrypoint.sh",
+    "startCommand": "nginx -g 'daemon off;'",
     "runtime": "V2",
     "numReplicas": 1,
     "sleepApplication": false,
