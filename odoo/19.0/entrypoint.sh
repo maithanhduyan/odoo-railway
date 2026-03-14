@@ -1,6 +1,32 @@
 #!/bin/sh
 set -e
 
+# Create S3 bucket if configured (wait for MinIO to be ready)
+if [ -n "$S3_ENDPOINT" ]; then
+  echo "Waiting for S3/MinIO..."
+  for i in $(seq 1 30); do
+    python3 << 'PYEOF' && break || sleep 2
+import os, boto3
+from botocore.exceptions import ClientError
+client = boto3.client('s3',
+    endpoint_url=os.environ['S3_ENDPOINT'],
+    aws_access_key_id=os.environ['S3_ACCESS_KEY'],
+    aws_secret_access_key=os.environ['S3_SECRET_KEY'],
+    region_name=os.environ.get('S3_REGION', 'us-east-1'))
+bucket = os.environ.get('S3_BUCKET', 'odoo')
+try:
+    client.head_bucket(Bucket=bucket)
+    print(f'S3 bucket "{bucket}" is ready')
+except ClientError as e:
+    if e.response['Error']['Code'] in ('404', 'NoSuchBucket'):
+        client.create_bucket(Bucket=bucket)
+        print(f'Created S3 bucket: {bucket}')
+    else:
+        raise
+PYEOF
+  done
+fi
+
 # Build argument list using set -- to handle values with spaces safely
 set -- odoo
 set -- "$@" "--http-port=${ODOO_PORT:-8069}"
