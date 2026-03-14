@@ -46,7 +46,7 @@ services:
       ODOO_DATABASE_PORT: "5432"
       ODOO_DATABASE_USER: odoo
       ODOO_DATABASE_PASSWORD: odoo
-      ODOO_DATABASE_NAME: odoo
+      ODOO_DATABASE_NAME: spicehubvn
       S3_ENDPOINT: http://minio:9000
       S3_ACCESS_KEY: minioadmin
       S3_SECRET_KEY: minioadmin123
