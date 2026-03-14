@@ -79,6 +79,11 @@ set -- "$@" "--gevent-port=${ODOO_GEVENT_PORT:-8072}"
 set -- "$@" "--proxy-mode"
 set -- "$@" "--without-demo=True"
 
+# Workers (0=single-process, >0=multi-process with gevent on ODOO_GEVENT_PORT)
+if [ -n "$ODOO_WORKERS" ]; then
+  set -- "$@" "--workers=${ODOO_WORKERS}"
+fi
+
 # Database (required)
 set -- "$@" "--db_host=${ODOO_DATABASE_HOST:-localhost}"
 set -- "$@" "--db_port=${ODOO_DATABASE_PORT:-5432}"
