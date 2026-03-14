@@ -3,9 +3,10 @@ set -e
 
 # Create S3 bucket if configured (wait for MinIO to be ready)
 if [ -n "$S3_ENDPOINT" ]; then
-  # Auto-prepend https:// if scheme is missing
+  # Auto-prepend scheme if missing: http for internal, https for public
   case "$S3_ENDPOINT" in
     http://*|https://*) ;;
+    *.railway.internal*) S3_ENDPOINT="http://${S3_ENDPOINT}"; export S3_ENDPOINT ;;
     *) S3_ENDPOINT="https://${S3_ENDPOINT}"; export S3_ENDPOINT ;;
   esac
   echo "Waiting for S3/MinIO (${S3_ENDPOINT})..."

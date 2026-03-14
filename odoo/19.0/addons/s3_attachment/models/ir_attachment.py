@@ -9,7 +9,11 @@ _logger = logging.getLogger(__name__)
 def _s3_endpoint():
     ep = os.environ.get('S3_ENDPOINT', '')
     if ep and not ep.startswith(('http://', 'https://')):
-        ep = 'https://' + ep
+        # Railway private networking has no TLS
+        if '.railway.internal' in ep:
+            ep = 'http://' + ep
+        else:
+            ep = 'https://' + ep
     return ep
 
 
