@@ -3,7 +3,12 @@ set -e
 
 # Create S3 bucket if configured (wait for MinIO to be ready)
 if [ -n "$S3_ENDPOINT" ]; then
-  echo "Waiting for S3/MinIO..."
+  # Auto-prepend https:// if scheme is missing
+  case "$S3_ENDPOINT" in
+    http://*|https://*) ;;
+    *) S3_ENDPOINT="https://${S3_ENDPOINT}"; export S3_ENDPOINT ;;
+  esac
+  echo "Waiting for S3/MinIO (${S3_ENDPOINT})..."
   for i in $(seq 1 30); do
     python3 << 'PYEOF' && break || sleep 2
 import os, boto3

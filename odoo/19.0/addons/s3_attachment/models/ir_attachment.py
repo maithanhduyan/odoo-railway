@@ -6,6 +6,13 @@ from odoo import models
 _logger = logging.getLogger(__name__)
 
 
+def _s3_endpoint():
+    ep = os.environ.get('S3_ENDPOINT', '')
+    if ep and not ep.startswith(('http://', 'https://')):
+        ep = 'https://' + ep
+    return ep
+
+
 def _s3_enabled():
     return bool(os.environ.get('S3_ENDPOINT'))
 
@@ -18,7 +25,7 @@ def _get_s3_client():
     import boto3
     return boto3.client(
         's3',
-        endpoint_url=os.environ['S3_ENDPOINT'],
+        endpoint_url=_s3_endpoint(),
         aws_access_key_id=os.environ['S3_ACCESS_KEY'],
         aws_secret_access_key=os.environ['S3_SECRET_KEY'],
         region_name=os.environ.get('S3_REGION', 'us-east-1'),
