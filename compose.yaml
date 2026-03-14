@@ -1,0 +1,84 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: odoo
+      POSTGRES_PASSWORD: odoo
+      POSTGRES_DB: odoo
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U odoo"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    build:
+      context: .
+      dockerfile: minio/Dockerfile
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+      PORT: "9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    command: ["/bin/sh", "/custom-entrypoint.sh"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  odoo:
+    build:
+      context: .
+      dockerfile: odoo/19.0/Dockerfile
+    environment:
+      ODOO_PORT: "8069"
+      ODOO_GEVENT_PORT: "8072"
+      ODOO_DATABASE_HOST: postgres
+      ODOO_DATABASE_PORT: "5432"
+      ODOO_DATABASE_USER: odoo
+      ODOO_DATABASE_PASSWORD: odoo
+      ODOO_DATABASE_NAME: odoo
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin123
+      S3_BUCKET: odoo
+    ports:
+      - "8069:8069"
+      - "8072:8072"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    command: /bin/sh /entrypoint.sh
+    volumes:
+      - odoo_data:/var/lib/odoo
+
+  nginx:
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    environment:
+      PORT: "80"
+      ODOO_HOST: odoo
+      ODOO_PORT: "8069"
+      ODOO_WS_PORT: "8072"
+    ports:
+      - "80:80"
+    depends_on:
+      - odoo
+    command: /bin/sh /entrypoint.sh
+
+volumes:
+  pg_data:
+  minio_data:
+  odoo_data:
