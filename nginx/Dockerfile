@@ -3,8 +3,8 @@ FROM nginx:alpine
 # Remove default server block
 RUN rm /etc/nginx/conf.d/default.conf
 
-# Copy Odoo reverse-proxy config
-COPY ./nginx/nginx.conf /etc/nginx/conf.d/odoo.conf
+# Copy config as template
+COPY nginx.conf /etc/nginx/templates/odoo.conf.template
 
-# Railway injects PORT at runtime; replace listen directive accordingly
-CMD sh -c "sed -i \"s/listen 80/listen ${PORT:-80}/\" /etc/nginx/conf.d/odoo.conf && nginx -g 'daemon off;'"
+# Only substitute Railway env vars; leave nginx variables ($http_host, etc.) intact
+CMD sh -c "envsubst '\$PORT \$ODOO_HOST' < /etc/nginx/templates/odoo.conf.template > /etc/nginx/conf.d/odoo.conf && nginx -g 'daemon off;'"
