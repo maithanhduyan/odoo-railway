@@ -35,11 +35,11 @@ set -- "$@" "--proxy-mode"
 set -- "$@" "--without-demo=True"
 
 # Database (required)
-set -- "$@" "--db_host=${ODOO_DATABASE_HOST}"
+set -- "$@" "--db_host=${ODOO_DATABASE_HOST:-localhost}"
 set -- "$@" "--db_port=${ODOO_DATABASE_PORT:-5432}"
-set -- "$@" "--db_user=${ODOO_DATABASE_USER}"
-set -- "$@" "--db_password=${ODOO_DATABASE_PASSWORD}"
-set -- "$@" "--database=${ODOO_DATABASE_NAME}"
+set -- "$@" "--db_user=${ODOO_DATABASE_USER:-odoo}"
+set -- "$@" "--db_password=${ODOO_DATABASE_PASSWORD:-odoo}"
+# set -- "$@" "--database=${ODOO_DATABASE_NAME:-odoo}"
 
 # SMTP (optional — only add if ODOO_SMTP_HOST is set)
 if [ -n "$ODOO_SMTP_HOST" ]; then
@@ -56,4 +56,3 @@ if [ -n "$ODOO_INIT" ]; then
 fi
 
 exec "$@" 2>&1
-
