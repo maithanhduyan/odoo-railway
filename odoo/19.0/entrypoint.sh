@@ -73,36 +73,68 @@ fi
 
 # Build argument list using set -- to handle values with spaces safely
 set -- odoo
-set -- "$@" "--addons-path=/mnt/extra-addons,/usr/lib/python3/dist-packages/odoo/addons"
+set -- "$@" "--addons-path=${ODOO_ADDONS_PATH:-/mnt/extra-addons,/usr/lib/python3/dist-packages/odoo/addons}"
+set -- "$@" "--data-dir=${ODOO_DATA_DIR:-/var/lib/odoo}"
 set -- "$@" "--http-port=${ODOO_PORT:-8069}"
 set -- "$@" "--gevent-port=${ODOO_GEVENT_PORT:-8072}"
-set -- "$@" "--proxy-mode"
-set -- "$@" "--without-demo=True"
 
-# Workers (0=single-process, >0=multi-process with gevent on ODOO_GEVENT_PORT)
-if [ -n "$ODOO_WORKERS" ]; then
-  set -- "$@" "--workers=${ODOO_WORKERS}"
-fi
+# Boolean flags (default True unless explicitly set to False)
+case "${ODOO_PROXY_MODE:-True}" in
+  [Ff]alse|0|no) ;;
+  *) set -- "$@" "--proxy-mode" ;;
+esac
 
-# Database (required)
+case "${ODOO_WITHOUT_DEMO:-True}" in
+  [Ff]alse|0|no) ;;
+  *) set -- "$@" "--without-demo=True" ;;
+esac
+
+# --- Admin ---
+[ -n "$ODOO_ADMIN_PASSWORD" ] && set -- "$@" "--admin-passwd=${ODOO_ADMIN_PASSWORD}"
+
+# --- Workers & Limits ---
+[ -n "$ODOO_WORKERS" ]            && set -- "$@" "--workers=${ODOO_WORKERS}"
+[ -n "$ODOO_MAX_CRON_THREADS" ]   && set -- "$@" "--max-cron-threads=${ODOO_MAX_CRON_THREADS}"
+[ -n "$ODOO_LIMIT_MEMORY_HARD" ]  && set -- "$@" "--limit-memory-hard=${ODOO_LIMIT_MEMORY_HARD}"
+[ -n "$ODOO_LIMIT_MEMORY_SOFT" ]  && set -- "$@" "--limit-memory-soft=${ODOO_LIMIT_MEMORY_SOFT}"
+[ -n "$ODOO_LIMIT_TIME_CPU" ]     && set -- "$@" "--limit-time-cpu=${ODOO_LIMIT_TIME_CPU}"
+[ -n "$ODOO_LIMIT_TIME_REAL" ]    && set -- "$@" "--limit-time-real=${ODOO_LIMIT_TIME_REAL}"
+[ -n "$ODOO_LIMIT_REQUEST" ]      && set -- "$@" "--limit-request=${ODOO_LIMIT_REQUEST}"
+
+# --- Database ---
 set -- "$@" "--db_host=${ODOO_DATABASE_HOST:-localhost}"
 set -- "$@" "--db_port=${ODOO_DATABASE_PORT:-5432}"
 set -- "$@" "--db_user=${ODOO_DATABASE_USER:-odoo}"
 set -- "$@" "--db_password=${ODOO_DATABASE_PASSWORD:-odoo}"
 set -- "$@" "--database=${ODOO_DATABASE_NAME:-odoo}"
+[ -n "$ODOO_DB_MAXCONN" ]  && set -- "$@" "--db_maxconn=${ODOO_DB_MAXCONN}"
+[ -n "$ODOO_DB_TEMPLATE" ] && set -- "$@" "--db-template=${ODOO_DB_TEMPLATE}"
+[ -n "$ODOO_DB_SSLMODE" ]  && set -- "$@" "--db_sslmode=${ODOO_DB_SSLMODE}"
+[ -n "$ODOO_DBFILTER" ]    && set -- "$@" "--db-filter=${ODOO_DBFILTER}"
+[ -n "$ODOO_LIST_DB" ]     && set -- "$@" "--list-db=${ODOO_LIST_DB}"
+[ -n "$ODOO_UNACCENT" ]    && set -- "$@" "--unaccent"
 
-# SMTP (optional — only add if ODOO_SMTP_HOST is set)
+# --- Logging ---
+[ -n "$ODOO_LOG_LEVEL" ]   && set -- "$@" "--log-level=${ODOO_LOG_LEVEL}"
+[ -n "$ODOO_LOG_HANDLER" ] && set -- "$@" "--log-handler=${ODOO_LOG_HANDLER}"
+[ -n "$ODOO_LOG_DB" ]      && set -- "$@" "--log-db=${ODOO_LOG_DB}"
+[ -n "$ODOO_LOGFILE" ]     && set -- "$@" "--logfile=${ODOO_LOGFILE}"
+
+# --- SMTP (optional — only add if ODOO_SMTP_HOST is set) ---
 if [ -n "$ODOO_SMTP_HOST" ]; then
   set -- "$@" "--smtp=${ODOO_SMTP_HOST}"
-  set -- "$@" "--smtp-port=${ODOO_SMTP_PORT_NUMBER:-587}"
+  set -- "$@" "--smtp-port=${ODOO_SMTP_PORT:-587}"
   [ -n "$ODOO_SMTP_USER" ]     && set -- "$@" "--smtp-user=${ODOO_SMTP_USER}"
   [ -n "$ODOO_SMTP_PASSWORD" ] && set -- "$@" "--smtp-password=${ODOO_SMTP_PASSWORD}"
+  [ -n "$ODOO_SMTP_SSL" ]      && set -- "$@" "--smtp-ssl=${ODOO_SMTP_SSL}"
   [ -n "$ODOO_EMAIL_FROM" ]    && set -- "$@" "--email-from=${ODOO_EMAIL_FROM}"
 fi
 
-# Init modules on first deploy only (set ODOO_INIT=base or ODOO_INIT=all)
-if [ -n "$ODOO_INIT" ]; then
-  set -- "$@" "--init=${ODOO_INIT}"
-fi
+# --- Modules ---
+[ -n "$ODOO_INIT" ]   && set -- "$@" "--init=${ODOO_INIT}"
+[ -n "$ODOO_UPDATE" ] && set -- "$@" "--update=${ODOO_UPDATE}"
+
+# --- Dev mode ---
+[ -n "$ODOO_DEV" ] && set -- "$@" "--dev=${ODOO_DEV}"
 
 exec "$@" 2>&1

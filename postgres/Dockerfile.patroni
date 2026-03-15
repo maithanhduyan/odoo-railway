@@ -1,0 +1,29 @@
+ARG POSTGRES_VERSION=17
+FROM postgres:${POSTGRES_VERSION}
+
+# Install dependencies: OpenSSL, sudo, pgvector, python3, patroni
+RUN apt-get update && apt-get install -y \
+    openssl sudo \
+    postgresql-17-pgvector \
+    python3 python3-pip python3-venv \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Patroni with etcd support in a virtual environment
+RUN python3 -m venv /opt/patroni \
+    && /opt/patroni/bin/pip install --no-cache-dir patroni[etcd3] psycopg2-binary
+
+ENV PATH="/opt/patroni/bin:$PATH"
+
+# Allow the postgres user to execute certain commands as root without a password
+RUN echo "postgres ALL=(root) NOPASSWD: /usr/bin/mkdir, /bin/chown, /usr/bin/openssl" > /etc/sudoers.d/postgres
+
+# Copy SSL init script (reused from base setup)
+COPY --chmod=755 init-ssl.sh /docker-entrypoint-initdb.d/init-ssl.sh
+
+# Copy Patroni config
+COPY --chmod=644 patroni.yml /etc/patroni/patroni.yml
+
+USER postgres
+
+ENTRYPOINT ["patroni"]
+CMD ["/etc/patroni/patroni.yml"]

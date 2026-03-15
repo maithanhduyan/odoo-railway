@@ -16,6 +16,8 @@
         "swag": true,
         "ConvertFrom-Json": true,
         "docker compose": true,
-        "docker stop": true
+        "docker stop": true,
+        "railway": true,
+        "ConvertTo-Json": true
     }
 }

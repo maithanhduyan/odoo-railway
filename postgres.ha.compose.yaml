@@ -1,0 +1,246 @@
+# PostgreSQL HA: Patroni + etcd + PgBouncer
+#
+# Usage:
+#   docker compose -f compose.yaml -f postgres.ha.compose.yaml up -d
+#
+# Architecture:
+#   3x etcd nodes      → distributed consensus (leader election)
+#   3x patroni/pg nodes → PostgreSQL with automatic failover
+#   1x pgbouncer        → connection pooler, routes to current leader
+#
+# Patroni REST API:   http://pg-node{1,2,3}:8008
+# PgBouncer (Odoo):   pgbouncer:6432
+# etcd client ports:   etcd{1,2,3}:2379
+
+services:
+  # ---------- Disable the default single-instance postgres ----------
+  postgres:
+    profiles: ["disabled"]
+
+  # ===================== ETCD CLUSTER (3 nodes) =====================
+  etcd1:
+    image: bitnami/etcd:3.5
+    container_name: etcd1
+    environment:
+      ALLOW_NONE_AUTHENTICATION: "yes"
+      ETCD_NAME: etcd1
+      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://etcd1:2380
+      ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
+      ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
+      ETCD_ADVERTISE_CLIENT_URLS: http://etcd1:2379
+      ETCD_INITIAL_CLUSTER: etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380
+      ETCD_INITIAL_CLUSTER_STATE: new
+      ETCD_INITIAL_CLUSTER_TOKEN: odoo-etcd-cluster
+    volumes:
+      - etcd1_data:/bitnami/etcd
+    networks:
+      - odoo-ha-network
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  etcd2:
+    image: bitnami/etcd:3.5
+    container_name: etcd2
+    environment:
+      ALLOW_NONE_AUTHENTICATION: "yes"
+      ETCD_NAME: etcd2
+      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://etcd2:2380
+      ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
+      ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
+      ETCD_ADVERTISE_CLIENT_URLS: http://etcd2:2379
+      ETCD_INITIAL_CLUSTER: etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380
+      ETCD_INITIAL_CLUSTER_STATE: new
+      ETCD_INITIAL_CLUSTER_TOKEN: odoo-etcd-cluster
+    volumes:
+      - etcd2_data:/bitnami/etcd
+    networks:
+      - odoo-ha-network
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  etcd3:
+    image: bitnami/etcd:3.5
+    container_name: etcd3
+    environment:
+      ALLOW_NONE_AUTHENTICATION: "yes"
+      ETCD_NAME: etcd3
+      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://etcd3:2380
+      ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
+      ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
+      ETCD_ADVERTISE_CLIENT_URLS: http://etcd3:2379
+      ETCD_INITIAL_CLUSTER: etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380
+      ETCD_INITIAL_CLUSTER_STATE: new
+      ETCD_INITIAL_CLUSTER_TOKEN: odoo-etcd-cluster
+    volumes:
+      - etcd3_data:/bitnami/etcd
+    networks:
+      - odoo-ha-network
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===================== PATRONI + POSTGRESQL (3 nodes) =====================
+  pg-node1:
+    build:
+      context: .
+      dockerfile: postgres/Dockerfile.patroni
+    container_name: pg-node1
+    environment:
+      PATRONI_NAME: pg-node1
+      POSTGRES_USER: ${POSTGRES_USER:-odoo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-odoo}
+      REPLICATION_PASSWORD: ${REPLICATION_PASSWORD:-repl_secret}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - pg_node1_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+      - "8008:8008"
+    networks:
+      - odoo-ha-network
+    depends_on:
+      etcd1:
+        condition: service_healthy
+      etcd2:
+        condition: service_healthy
+      etcd3:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-odoo} || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  pg-node2:
+    build:
+      context: .
+      dockerfile: postgres/Dockerfile.patroni
+    container_name: pg-node2
+    environment:
+      PATRONI_NAME: pg-node2
+      POSTGRES_USER: ${POSTGRES_USER:-odoo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-odoo}
+      REPLICATION_PASSWORD: ${REPLICATION_PASSWORD:-repl_secret}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - pg_node2_data:/var/lib/postgresql/data
+    ports:
+      - "5434:5432"
+      - "8009:8008"
+    networks:
+      - odoo-ha-network
+    depends_on:
+      etcd1:
+        condition: service_healthy
+      etcd2:
+        condition: service_healthy
+      etcd3:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-odoo} || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  pg-node3:
+    build:
+      context: .
+      dockerfile: postgres/Dockerfile.patroni
+    container_name: pg-node3
+    environment:
+      PATRONI_NAME: pg-node3
+      POSTGRES_USER: ${POSTGRES_USER:-odoo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-odoo}
+      REPLICATION_PASSWORD: ${REPLICATION_PASSWORD:-repl_secret}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - pg_node3_data:/var/lib/postgresql/data
+    ports:
+      - "5435:5432"
+      - "8010:8008"
+    networks:
+      - odoo-ha-network
+    depends_on:
+      etcd1:
+        condition: service_healthy
+      etcd2:
+        condition: service_healthy
+      etcd3:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-odoo} || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  # ===================== PGBOUNCER =====================
+  pgbouncer:
+    build:
+      context: .
+      dockerfile: pgbouncer/Dockerfile
+    container_name: pgbouncer-ha
+    environment:
+      # PgBouncer discovers the current Patroni leader via DNS or config
+      # In HA mode, point to pg-node1 initially — Patroni handles leader routing
+      DB_HOST: pg-node1
+      DB_PORT: "5432"
+      DB_USER: ${POSTGRES_USER:-odoo}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-odoo}
+    ports:
+      - "6432:6432"
+    networks:
+      - odoo-ha-network
+    depends_on:
+      pg-node1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 6432 -U ${POSTGRES_USER:-odoo}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ---------- Override Odoo to connect through PgBouncer ----------
+  odoo:
+    environment:
+      ODOO_DATABASE_HOST: pgbouncer-ha
+      ODOO_DATABASE_PORT: "6432"
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - odoo-ha-network
+
+  # ---------- Attach remaining services to the HA network ----------
+  minio:
+    networks:
+      - odoo-ha-network
+
+  nginx:
+    networks:
+      - odoo-ha-network
+
+networks:
+  odoo-ha-network:
+    name: odoo-ha-network
+    driver: bridge
+
+volumes:
+  etcd1_data:
+  etcd2_data:
+  etcd3_data:
+  pg_node1_data:
+  pg_node2_data:
+  pg_node3_data:

@@ -1,0 +1,70 @@
+scope: odoo-cluster
+name: ${PATRONI_NAME:-pg-node1}
+
+restapi:
+  listen: 0.0.0.0:8008
+  connect_address: ${PATRONI_NAME:-pg-node1}:8008
+
+etcd3:
+  hosts: etcd1:2379,etcd2:2379,etcd3:2379
+
+bootstrap:
+  dcs:
+    ttl: 30
+    loop_wait: 10
+    retry_timeout: 10
+    maximum_lag_on_failover: 1048576
+    postgresql:
+      use_pg_rewind: true
+      use_slots: true
+      parameters:
+        wal_level: replica
+        hot_standby: "on"
+        max_wal_senders: 5
+        max_replication_slots: 5
+        wal_keep_size: 256MB
+        shared_preload_libraries: "pg_stat_statements"
+        ssl: "on"
+        ssl_cert_file: /var/lib/postgresql/data/certs/server.crt
+        ssl_key_file: /var/lib/postgresql/data/certs/server.key
+        ssl_ca_file: /var/lib/postgresql/data/certs/root.crt
+
+  initdb:
+    - encoding: UTF8
+    - data-checksums
+
+  pg_hba:
+    - host replication replicator 0.0.0.0/0 md5
+    - host all all 0.0.0.0/0 md5
+
+  users:
+    admin:
+      password: "${POSTGRES_PASSWORD:-odoo}"
+      options:
+        - createrole
+        - createdb
+    replicator:
+      password: "${REPLICATION_PASSWORD:-repl_secret}"
+      options:
+        - replication
+
+postgresql:
+  listen: 0.0.0.0:5432
+  connect_address: ${PATRONI_NAME:-pg-node1}:5432
+  data_dir: /var/lib/postgresql/data/pgdata
+  pgpass: /tmp/pgpass
+  authentication:
+    superuser:
+      username: "${POSTGRES_USER:-odoo}"
+      password: "${POSTGRES_PASSWORD:-odoo}"
+    replication:
+      username: replicator
+      password: "${REPLICATION_PASSWORD:-repl_secret}"
+  parameters:
+    unix_socket_directories: "/var/run/postgresql"
+
+tags:
+  nofailover: false
+  noloadbalance: false
+  clonefrom: false
+  nosync: false

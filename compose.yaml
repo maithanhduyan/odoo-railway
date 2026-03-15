@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:17
+    container_name: postgres-1
     environment:
       POSTGRES_USER: odoo
       POSTGRES_PASSWORD: odoo
@@ -19,6 +20,7 @@ services:
     build:
       context: .
       dockerfile: minio/Dockerfile
+    container_name: minio
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin123
@@ -39,18 +41,19 @@ services:
     build:
       context: .
       dockerfile: odoo/19.0/Dockerfile
+    container_name: odoo-1
     environment:
       ODOO_PORT: "8069"
       ODOO_GEVENT_PORT: "8072"
-      ODOO_DATABASE_HOST: postgres
+      ODOO_DATABASE_HOST: "postgres"
       ODOO_DATABASE_PORT: "5432"
-      ODOO_DATABASE_USER: odoo
-      ODOO_DATABASE_PASSWORD: odoo
-      ODOO_DATABASE_NAME: spicehubvn
-      S3_ENDPOINT: http://minio:9000
-      S3_ACCESS_KEY: minioadmin
-      S3_SECRET_KEY: minioadmin123
-      S3_BUCKET: odoo
+      ODOO_DATABASE_USER: "odoo"
+      ODOO_DATABASE_PASSWORD: "odoo"
+      ODOO_DATABASE_NAME: 0
+      S3_ENDPOINT: "http://minio:9000"
+      S3_ACCESS_KEY: "minioadmin"
+      S3_SECRET_KEY: "minioadmin123"
+      S3_BUCKET: "odoo"
     ports:
       - "8069:8069"
       - "8072:8072"
@@ -67,6 +70,7 @@ services:
     build:
       context: .
       dockerfile: nginx/Dockerfile
+    container_name: nginx-1
     environment:
       PORT: "80"
       ODOO_HOST: odoo
@@ -76,7 +80,17 @@ services:
       - "80:80"
     depends_on:
       - odoo
-    command: /bin/sh /entrypoint.sh
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:80 || exit 1"]
+      interval: 1m30s
+      timeout: 30s
+      retries: 5
+      start_period: 30s
+
+networks:
+  default_network:
+    name: odoo-default
+    driver: bridge
 
 volumes:
   pg_data:

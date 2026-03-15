@@ -1,0 +1,128 @@
+# PostgreSQL Native Streaming Replication + PgBouncer
+#
+# Usage:
+#   docker compose -f compose.yaml -f postgres.compose.yaml up -d
+#
+# This override replaces the single postgres service with:
+#   - pg-primary: writable primary with replication enabled
+#   - pg-standby: read-only hot standby via streaming replication
+#   - pgbouncer:  connection pooler fronting the primary
+#
+# Odoo connects through pgbouncer (port 6432) instead of directly to PostgreSQL.
+# Failover is MANUAL — promote standby with: pg_ctl promote -D $PGDATA
+
+services:
+  # ---------- Disable the default single-instance postgres ----------
+  postgres:
+    profiles: ["disabled"]
+
+  # ---------- PRIMARY ----------
+  pg-primary:
+    build:
+      context: .
+      dockerfile: postgres/Dockerfile.17
+    container_name: pg-primary
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-odoo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-odoo}
+      POSTGRES_DB: ${POSTGRES_DB:-odoo}
+      PGDATA: /var/lib/postgresql/data/pgdata
+      REPLICATION_USER: ${REPLICATION_USER:-replicator}
+      REPLICATION_PASSWORD: ${REPLICATION_PASSWORD:-repl_secret}
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg_primary_data:/var/lib/postgresql/data
+      - ./postgres/init-replication.sh:/docker-entrypoint-initdb.d/init-replication.sh:ro
+    networks:
+      - odoo-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-odoo}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ---------- STANDBY (read-only replica) ----------
+  pg-standby:
+    build:
+      context: .
+      dockerfile: postgres/Dockerfile.17
+    container_name: pg-standby
+    environment:
+      PRIMARY_HOST: pg-primary
+      PRIMARY_PORT: "5432"
+      REPLICATION_USER: ${REPLICATION_USER:-replicator}
+      REPLICATION_PASSWORD: ${REPLICATION_PASSWORD:-repl_secret}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    entrypoint: ["bash", "/standby-entrypoint.sh"]
+    command: []
+    ports:
+      - "5434:5432"
+    volumes:
+      - pg_standby_data:/var/lib/postgresql/data
+      - ./postgres/standby-entrypoint.sh:/standby-entrypoint.sh:ro
+    networks:
+      - odoo-network
+    depends_on:
+      pg-primary:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${REPLICATION_USER:-replicator}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ---------- PGBOUNCER (connection pooler) ----------
+  pgbouncer:
+    build:
+      context: .
+      dockerfile: pgbouncer/Dockerfile
+    container_name: pgbouncer
+    environment:
+      DB_HOST: pg-primary
+      DB_PORT: "5432"
+      DB_USER: ${POSTGRES_USER:-odoo}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-odoo}
+    ports:
+      - "6432:6432"
+    networks:
+      - odoo-network
+    depends_on:
+      pg-primary:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 6432 -U ${POSTGRES_USER:-odoo}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ---------- Override Odoo to connect through PgBouncer ----------
+  odoo:
+    environment:
+      ODOO_DATABASE_HOST: pgbouncer
+      ODOO_DATABASE_PORT: "6432"
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - odoo-network
+
+  # ---------- Attach remaining services to the same network ----------
+  minio:
+    networks:
+      - odoo-network
+
+  nginx:
+    networks:
+      - odoo-network
+
+networks:
+  odoo-network:
+    name: odoo-network
+    driver: bridge
+
+volumes:
+  pg_primary_data:
+  pg_standby_data:
