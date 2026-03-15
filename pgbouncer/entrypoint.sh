@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 set -e
 
 # Generate userlist.txt from environment variables
@@ -10,15 +10,12 @@ DB_PASSWORD="${DB_PASSWORD:-odoo}"
 DB_HOST="${DB_HOST:-postgres}"
 DB_PORT="${DB_PORT:-5432}"
 
-# Generate MD5 password hash for pgbouncer auth
-# Format: "username" "md5<md5hash of password+username>"
-MD5_PASS=$(echo -n "${DB_PASSWORD}${DB_USER}" | md5sum | awk '{print $1}')
-echo "\"${DB_USER}\" \"md5${MD5_PASS}\"" > "$USERLIST_FILE"
+# Generate userlist with plain-text passwords (PgBouncer handles SCRAM auth)
+echo "\"${DB_USER}\" \"${DB_PASSWORD}\"" > "$USERLIST_FILE"
 
 # Add replication user if defined
 if [ -n "$REPLICATION_USER" ] && [ -n "$REPLICATION_PASSWORD" ]; then
-  MD5_REPL=$(echo -n "${REPLICATION_PASSWORD}${REPLICATION_USER}" | md5sum | awk '{print $1}')
-  echo "\"${REPLICATION_USER}\" \"md5${MD5_REPL}\"" >> "$USERLIST_FILE"
+  echo "\"${REPLICATION_USER}\" \"${REPLICATION_PASSWORD}\"" >> "$USERLIST_FILE"
 fi
 
 # Substitute environment variables in pgbouncer.ini

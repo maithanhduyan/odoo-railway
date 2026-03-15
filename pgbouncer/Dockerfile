@@ -1,7 +1,7 @@
-FROM edoburu/pgbouncer:1.24.0
+FROM edoburu/pgbouncer:latest
 
-COPY --chmod=644 pgbouncer.ini /etc/pgbouncer/pgbouncer.ini
-COPY --chmod=644 userlist.txt /etc/pgbouncer/userlist.txt
-COPY --chmod=755 entrypoint.sh /entrypoint.sh
+COPY --chmod=666 ./pgbouncer/pgbouncer.ini /etc/pgbouncer/pgbouncer.ini
+COPY --chmod=666 ./pgbouncer/userlist.txt /etc/pgbouncer/userlist.txt
+COPY --chmod=755 ./pgbouncer/entrypoint.sh /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]

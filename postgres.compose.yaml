@@ -67,7 +67,7 @@ services:
       pg-primary:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${REPLICATION_USER:-replicator}"]
+      test: ["CMD-SHELL", "pg_isready -U ${REPLICATION_USER:-replicator} -d ${POSTGRES_DB:-odoo}"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -102,6 +102,9 @@ services:
       ODOO_DATABASE_HOST: pgbouncer
       ODOO_DATABASE_PORT: "6432"
     depends_on:
+      postgres:
+        condition: service_started
+        required: false
       pgbouncer:
         condition: service_healthy
       minio:
@@ -115,6 +118,20 @@ services:
       - odoo-network
 
   nginx:
+    networks:
+      - odoo-network
+
+  # ---------- Override pgAdmin to connect to pg-primary ----------
+  pgadmin:
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
+    depends_on:
+      postgres:
+        condition: service_started
+        required: false
+      pg-primary:
+        condition: service_healthy
     networks:
       - odoo-network
 

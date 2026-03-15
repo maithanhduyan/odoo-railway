@@ -45,9 +45,25 @@ else
 fi
 
 # Ensure correct permissions
+chown -R postgres:postgres "$PGDATA"
 chmod 0700 "$PGDATA"
+
+# Generate SSL certs if primary had SSL enabled but certs weren't copied
+SSL_DIR="/var/lib/postgresql/data/certs"
+if grep -q "ssl_cert_file" "$PGDATA/postgresql.conf" 2>/dev/null && [ ! -f "$SSL_DIR/server.crt" ]; then
+  echo "Generating SSL certificates for standby..."
+  mkdir -p "$SSL_DIR"
+  openssl req -new -x509 -days 820 -nodes -text -out "$SSL_DIR/root.crt" -keyout "$SSL_DIR/root.key" -subj "/CN=root-ca"
+  chmod og-rwx "$SSL_DIR/root.key"
+  openssl req -new -nodes -text -out "$SSL_DIR/server.csr" -keyout "$SSL_DIR/server.key" -subj "/CN=localhost"
+  chown postgres:postgres "$SSL_DIR/server.key"
+  chmod og-rwx "$SSL_DIR/server.key"
+  openssl x509 -req -in "$SSL_DIR/server.csr" -text -days 820 -CA "$SSL_DIR/root.crt" -CAkey "$SSL_DIR/root.key" -CAcreateserial -out "$SSL_DIR/server.crt"
+  chown postgres:postgres "$SSL_DIR/server.crt"
+  chown -R postgres:postgres "$SSL_DIR"
+fi
 
 unset PGPASSWORD
 
 echo "Starting PostgreSQL standby..."
-exec postgres -p "${POSTGRES_PORT:-5432}" -c "listen_addresses=*"
+exec gosu postgres postgres -p "${POSTGRES_PORT:-5432}" -c "listen_addresses=*"
