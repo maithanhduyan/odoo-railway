@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: odoo
       POSTGRES_DB: odoo
     ports:
-      - "5433:5432"
+      - "${POSTGRES_PORT:-5433}:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
@@ -22,12 +22,12 @@ services:
       dockerfile: minio/Dockerfile
     container_name: minio
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin123
-      PORT: "9001"
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+      PORT: "${MINIO_PORT:-9001}"
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "${MINIO_PORT:-9000}:${MINIO_PORT:-9000}"
+      - "${MINIO_PORT:-9001}:${MINIO_PORT:-9001}"
     volumes:
       - minio_data:/data
     command: ["/bin/sh", "/custom-entrypoint.sh"]
@@ -49,7 +49,8 @@ services:
       ODOO_DATABASE_PORT: "5432"
       ODOO_DATABASE_USER: "odoo"
       ODOO_DATABASE_PASSWORD: "odoo"
-      ODOO_DATABASE_NAME: 0
+      # ODOO_DATABASE_NAME: "False"
+      ODOO_DATABASE_FILTER: ".*"
       S3_ENDPOINT: "http://minio:9000"
       S3_ACCESS_KEY: "minioadmin"
       S3_SECRET_KEY: "minioadmin123"
@@ -87,6 +88,23 @@ services:
       retries: 5
       start_period: 30s
 
+  pgadmin:
+    build:
+      context: .
+      dockerfile: pgadmin/Dockerfile
+    container_name: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
+      PGADMIN_LISTEN_PORT: "5050"
+    ports:
+      - "5050:5050"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 networks:
   default_network:
     name: odoo-default
@@ -96,3 +114,4 @@ volumes:
   pg_data:
   minio_data:
   odoo_data:
+  pgadmin_data:

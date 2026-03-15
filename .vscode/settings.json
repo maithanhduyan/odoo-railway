@@ -18,6 +18,7 @@
         "docker compose": true,
         "docker stop": true,
         "railway": true,
-        "ConvertTo-Json": true
+        "ConvertTo-Json": true,
+        "netstat": true
     }
 }
