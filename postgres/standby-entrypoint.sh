@@ -9,6 +9,7 @@ PRIMARY_HOST="${PRIMARY_HOST:-pg-primary}"
 PRIMARY_PORT="${PRIMARY_PORT:-5432}"
 REPLICATION_USER="${REPLICATION_USER:-replicator}"
 REPLICATION_PASSWORD="${REPLICATION_PASSWORD:-repl_secret}"
+REPLICATION_SLOT="${REPLICATION_SLOT:-}"
 
 export PGPASSWORD="$REPLICATION_PASSWORD"
 
@@ -30,7 +31,8 @@ if [ ! -s "$PGDATA/PG_VERSION" ]; then
     -p "$PRIMARY_PORT" \
     -U "$REPLICATION_USER" \
     -D "$PGDATA" \
-    -Fp -Xs -P -R
+    -Fp -Xs -P -R \
+    ${REPLICATION_SLOT:+-S "$REPLICATION_SLOT"}
 
   # -R flag creates standby.signal and sets primary_conninfo in postgresql.auto.conf
   echo "Base backup completed. Standby signal configured."
@@ -41,6 +43,11 @@ else
   # Ensure primary_conninfo is set
   if ! grep -q "primary_conninfo" "$PGDATA/postgresql.auto.conf" 2>/dev/null; then
     echo "primary_conninfo = 'host=${PRIMARY_HOST} port=${PRIMARY_PORT} user=${REPLICATION_USER} password=${REPLICATION_PASSWORD}'" >> "$PGDATA/postgresql.auto.conf"
+  fi
+
+  # Ensure primary_slot_name is set if REPLICATION_SLOT is defined
+  if [ -n "$REPLICATION_SLOT" ] && ! grep -q "primary_slot_name" "$PGDATA/postgresql.auto.conf" 2>/dev/null; then
+    echo "primary_slot_name = '${REPLICATION_SLOT}'" >> "$PGDATA/postgresql.auto.conf"
   fi
 fi
 

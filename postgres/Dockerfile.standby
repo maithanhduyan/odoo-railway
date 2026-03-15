@@ -1,0 +1,15 @@
+ARG POSTGRES_VERSION=17
+FROM postgres:${POSTGRES_VERSION}
+
+# Install OpenSSL and sudo (same as primary for compatibility)
+RUN apt-get update && apt-get install -y openssl sudo postgresql-17-pgvector \
+    && rm -rf /var/lib/apt/lists/*
+
+# Allow the postgres user to execute certain commands as root without a password
+RUN echo "postgres ALL=(root) NOPASSWD: /usr/bin/mkdir, /bin/chown, /usr/bin/openssl" > /etc/sudoers.d/postgres
+
+# Copy standby entrypoint
+COPY --chmod=755 ./postgres/standby-entrypoint.sh /standby-entrypoint.sh
+
+ENTRYPOINT ["bash", "/standby-entrypoint.sh"]
+CMD []
